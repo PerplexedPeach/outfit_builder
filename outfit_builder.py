@@ -9,12 +9,8 @@ import os
 
 
 
-
-
 # TODO get filepath as an option
 # export to blend file location
-use_duplicate = True
-remove_shape_after_export = False
 
 class BuildOutfit(bpy.types.Operator):
     """
@@ -32,6 +28,9 @@ class BuildOutfit(bpy.types.Operator):
     bl_idname = "object.build_outfit"
     bl_label = "Build Outfits"
     bl_options = {'REGISTER', 'UNDO'}
+    
+    remove_shape_after_export: bpy.props.BoolProperty(name="Remove shapes after export", default=False)
+    duplicate_instead_of_copy: bpy.props.BoolProperty(name="Duplicate instead of copy", default=True)
     
     def execute(self, context):
         basedir = os.path.dirname(bpy.data.filepath)
@@ -67,7 +66,7 @@ class BuildOutfit(bpy.types.Operator):
                 armor.select_set(True)
                 view_layer.objects.active = armor
 
-                if use_duplicate:
+                if self.duplicate_instead_of_copy:
                     bpy.ops.object.duplicate(linked=False)
                     armor_shape = context.active_object
                 else:
@@ -91,7 +90,7 @@ class BuildOutfit(bpy.types.Operator):
                 # bpy.ops.io_pdx_mesh.export_mesh(filepath=(fn + f'_{bs_name}' + ".mesh"), chk_skel=False, chk_mesh_blendshape=True, chk_locs=False, chk_selected=True)
 
                 
-                if remove_shape_after_export:
+                if self.remove_shape_after_export:
                     bpy.ops.object.delete()
                 else:
                     armor_shape.select_set(False)
