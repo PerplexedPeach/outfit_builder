@@ -102,12 +102,25 @@ class BuildOutfit(bpy.types.Operator):
 def menu_func(self, context):
     self.layout.operator(BuildOutfit.bl_idname)
         
+addon_keymaps = []
+
 def register():
     bpy.utils.register_class(BuildOutfit)
     bpy.types.VIEW3D_MT_object.append(menu_func)
     
+    # handle the keymap
+    wm = bpy.context.window_manager
+    km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
+    
+    kmi = km.keymap_items.new(BuildOutfit.bl_idname, 'B', 'PRESS', ctrl=True, shift=True)
+    
+    addon_keymaps.append((km, kmi))
+    
 def unregister():
     bpy.utils.unregister_class(BuildOutfit)
+    for km, kmi in addon_keymaps:
+        km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
     
 if __name__ == "__main__":
     register()
