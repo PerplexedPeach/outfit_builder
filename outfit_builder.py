@@ -1,21 +1,22 @@
 bl_info = {
     "name": "Outfit Builder",
+    "author": "LazyIcarus",
+    "version" : (1, 0),
     "blender": (3, 1, 0),
-    "category": "Object",
+    "category": "Add Mesh",
+    "location": "Object -> Build Outfits"
 }
 # exports each selected object into its own file
 import bpy
 import os
 
 
-
-# TODO get filepath as an option
-# export to blend file location
+        
 
 class BuildOutfit(bpy.types.Operator):
     """
     Given a body and its variants as shape keys, for each selected armor generate
-    a variant for each blend shape.
+    a variant for each shape key.
     
     Requirements
      base body mesh (e.g. HUM_F) with body variants defined as Shape Keys on them
@@ -54,7 +55,6 @@ class BuildOutfit(bpy.types.Operator):
 
             bpy.ops.object.transfer_mesh_data()
 
-        #    bpy.ops.object.select_all(action='DESELECT')
 
             armor_shapes = armor.data.shape_keys.key_blocks
             shape_keys_ind = range(1, len(armor_shapes))
@@ -106,6 +106,7 @@ addon_keymaps = []
 
 def register():
     bpy.utils.register_class(BuildOutfit)
+
     bpy.types.VIEW3D_MT_object.append(menu_func)
     
     # handle the keymap
@@ -118,6 +119,7 @@ def register():
     
 def unregister():
     bpy.utils.unregister_class(BuildOutfit)
+
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
