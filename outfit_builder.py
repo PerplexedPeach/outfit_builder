@@ -10,7 +10,31 @@ bl_info = {
 import bpy
 import os
 
+class BuildProperties(bpy.types.PropertyGroup):
+    remove_shape_after_export: bpy.props.BoolProperty(name="Remove shapes after export", default=False)
+    duplicate_instead_of_copy: bpy.props.BoolProperty(name="Duplicate instead of copy", default=True)
+    output_dir: bpy.props.StringProperty(name="Output dir", default="", subtype="DIR_PATH")
+    
+class BuildPanel(bpy.types.Panel):
+    bl_label = "Outfit Builder"
+    bl_idname = "OB_properties_panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Outfit Builder"
 
+    
+    def draw(self, context):
+        layout = self.layout
+        
+        # allow modifying the properties on the scene
+        build_props = context.scene.outfit_builder
+        layout.prop(build_props, "remove_shape_after_export")
+        layout.prop(build_props, "duplicate_instead_of_copy")
+        layout.prop(build_props, "output_dir")
+        
+        # button to actually build the outfit
+        row = layout.row()
+        build = row.operator(BuildOutfit.bl_idname)
         
 
 class BuildOutfit(bpy.types.Operator):
@@ -30,11 +54,13 @@ class BuildOutfit(bpy.types.Operator):
     bl_label = "Build Outfits"
     bl_options = {'REGISTER', 'UNDO'}
     
-    remove_shape_after_export: bpy.props.BoolProperty(name="Remove shapes after export", default=False)
-    duplicate_instead_of_copy: bpy.props.BoolProperty(name="Duplicate instead of copy", default=True)
-    
+
     def execute(self, context):
-        basedir = os.path.dirname(bpy.data.filepath)
+        build_props = context.scene.outfit_builder
+        # defaults to current directory
+        basedir = build_props.output_dir or os.path.dirname(bpy.data.filepath)
+        
+        context.scene.ls_properties.game = 'bg3'
         
         selection = context.selected_objects
         if len(selection) < 2:
@@ -57,7 +83,7 @@ class BuildOutfit(bpy.types.Operator):
 
 
             armor_shapes = armor.data.shape_keys.key_blocks
-            shape_keys_ind = range(1, len(armor_shapes))
+            shape_keys_ind = range(0, len(armor_shapes))
 
             for ob in context.selected_objects:
                 ob.select_set(False)
@@ -66,7 +92,7 @@ class BuildOutfit(bpy.types.Operator):
                 armor.select_set(True)
                 view_layer.objects.active = armor
 
-                if self.duplicate_instead_of_copy:
+                if build_props.duplicate_instead_of_copy:
                     bpy.ops.object.duplicate(linked=False)
                     armor_shape = context.active_object
                 else:
@@ -86,11 +112,14 @@ class BuildOutfit(bpy.types.Operator):
                 bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
                 
                 fn = os.path.join(basedir, name)
+                print(fn)
+                # bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2", use_export_selected=True)
+                self.report({'INFO'}, f"Saving to {fn}")
                 # TODO export to file
                 # bpy.ops.io_pdx_mesh.export_mesh(filepath=(fn + f'_{bs_name}' + ".mesh"), chk_skel=False, chk_mesh_blendshape=True, chk_locs=False, chk_selected=True)
 
                 
-                if self.remove_shape_after_export:
+                if build_props.remove_shape_after_export:
                     bpy.ops.object.delete()
                 else:
                     armor_shape.select_set(False)
@@ -104,10 +133,14 @@ def menu_func(self, context):
         
 addon_keymaps = []
 
+classes = [BuildOutfit, BuildPanel, BuildProperties]
+
 def register():
-    bpy.utils.register_class(BuildOutfit)
+    for cls in classes:
+        bpy.utils.register_class(cls)
 
     bpy.types.VIEW3D_MT_object.append(menu_func)
+    bpy.types.Scene.outfit_builder = bpy.props.PointerProperty(type=BuildProperties)
     
     # handle the keymap
     wm = bpy.context.window_manager
@@ -118,7 +151,10 @@ def register():
     addon_keymaps.append((km, kmi))
     
 def unregister():
-    bpy.utils.unregister_class(BuildOutfit)
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
+
+    del bpy.types.Scene.outfit_builder
 
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
