@@ -110,7 +110,10 @@ class BuildOutfit(bpy.types.Operator):
                 
                 bs_name = armor_shapes[i].name
                 print('Shape key ', i, ' ', bs_name)
-                name = f"{body.name}_{bpy.path.clean_name(armor.name)}_{bpy.path.clean_name(bs_name)}"
+                armor_name = bpy.path.clean_name(armor.name)
+                # use _ to indicate FS and other variants - this way they can have the same name apart from prefix
+                armor_name = armor_name.strip("_")
+                name = f"{body.name}_{armor_name}_{bpy.path.clean_name(bs_name)}"
                 armor_shape.name = name
                 armor_shape.data.name = name
                 
@@ -123,9 +126,8 @@ class BuildOutfit(bpy.types.Operator):
                 if build_props.export:
                     bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2", use_export_selected=True)
                     self.report({'INFO'}, f"Saving to {fn}")
-                    time.sleep(0.4)
                 else:
-                    self.report({'INFO'}, f"Creating name")
+                    self.report({'INFO'}, f"Creating {name}")
 
                 if build_props.remove_shape_after_export:
                     bpy.ops.object.delete()
@@ -134,7 +136,7 @@ class BuildOutfit(bpy.types.Operator):
                         armor_shape.hide_viewport = True
                     armor_shape.select_set(False)
             
-            self.report({'INFO'}, f"Finished building {armor.name}")
+#            self.report({'INFO'}, f"Finished building {armor.name}")
             
         return {'FINISHED'}
 
