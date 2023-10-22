@@ -9,10 +9,14 @@ bl_info = {
 # exports each selected object into its own file
 import bpy
 import os
+import time
+
 
 class BuildProperties(bpy.types.PropertyGroup):
     remove_shape_after_export: bpy.props.BoolProperty(name="Remove shapes after export", default=False)
+    hide_shape_after_export: bpy.props.BoolProperty(name="Hide shapes after export", default=False)
     duplicate_instead_of_copy: bpy.props.BoolProperty(name="Duplicate instead of copy", default=True)
+    export: bpy.props.BoolProperty(name="Export", default=True)
     output_dir: bpy.props.StringProperty(name="Output dir", default="", subtype="DIR_PATH")
     
 class BuildPanel(bpy.types.Panel):
@@ -28,8 +32,9 @@ class BuildPanel(bpy.types.Panel):
         
         # allow modifying the properties on the scene
         build_props = context.scene.outfit_builder
+        layout.prop(build_props, "export")
+        layout.prop(build_props, "hide_shape_after_export")
         layout.prop(build_props, "remove_shape_after_export")
-        layout.prop(build_props, "duplicate_instead_of_copy")
         layout.prop(build_props, "output_dir")
         
         # button to actually build the outfit
@@ -107,21 +112,26 @@ class BuildOutfit(bpy.types.Operator):
                 print('Shape key ', i, ' ', bs_name)
                 name = f"{body.name}_{bpy.path.clean_name(armor.name)}_{bpy.path.clean_name(bs_name)}"
                 armor_shape.name = name
+                armor_shape.data.name = name
                 
                 # apply shape key
                 bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
                 
                 fn = os.path.join(basedir, name)
                 print(fn)
-                # bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2", use_export_selected=True)
-                self.report({'INFO'}, f"Saving to {fn}")
-                # TODO export to file
-                # bpy.ops.io_pdx_mesh.export_mesh(filepath=(fn + f'_{bs_name}' + ".mesh"), chk_skel=False, chk_mesh_blendshape=True, chk_locs=False, chk_selected=True)
-
                 
+                if build_props.export:
+                    bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2", use_export_selected=True)
+                    self.report({'INFO'}, f"Saving to {fn}")
+                    time.sleep(0.4)
+                else:
+                    self.report({'INFO'}, f"Creating name")
+
                 if build_props.remove_shape_after_export:
                     bpy.ops.object.delete()
                 else:
+                    if build_props.hide_shape_after_export:
+                        armor_shape.hide_viewport = True
                     armor_shape.select_set(False)
             
             self.report({'INFO'}, f"Finished building {armor.name}")
