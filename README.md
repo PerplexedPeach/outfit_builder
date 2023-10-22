@@ -41,4 +41,10 @@ The different options explained:
 - Hide shapes after export: Whether to hide the shape variant meshes after generating them. This is only meaningful if you don't remove shapes after export.
 - Remove shapes after export: Whether to remove the shape variant meshes after exporting them.
 - Output dir: Directory to export the GR2 files. If empty, the local directory of the blender file will be used.
-  
+
+## Shape Key Tips
+See the included template blender file for slim to strong shape keys. You can build similar ones for your custom body shapes.
+Shape keys are used for body sliders and so on (can also be used in animations). There is a direct vertex ID mapping between slim and strong body variants, so you can get the strong variant as a shape key of the slim body easily by Mesh Data Transfer with vertex ID as the search method (see below)
+
+![2023-10-22 13_14_07-Window](https://github.com/PerplexedPeach/outfit_builder/assets/48222967/b3985059-9a74-499f-831b-a90201b2f532)
+
