@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Outfit Builder",
     "author": "LazyIcarus",
-    "version" : (1, 0),
+    "version" : (1, 1),
     "blender": (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -18,10 +18,12 @@ class BuildProperties(bpy.types.PropertyGroup):
     duplicate_instead_of_copy: bpy.props.BoolProperty(name="Duplicate instead of copy", default=True)
     export: bpy.props.BoolProperty(name="Export", default=True)
     output_dir: bpy.props.StringProperty(name="Output dir", default="", subtype="DIR_PATH")
+    body: bpy.props.PointerProperty(name="Body Mesh", type=bpy.types.Object)
+    
     
 class BuildPanel(bpy.types.Panel):
     bl_label = "Outfit Builder"
-    bl_idname = "OB_properties_panel"
+    bl_idname = "OBJECT_PT_properties_panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "Outfit Builder"
@@ -35,6 +37,7 @@ class BuildPanel(bpy.types.Panel):
         layout.prop(build_props, "export")
         layout.prop(build_props, "hide_shape_after_export")
         layout.prop(build_props, "remove_shape_after_export")
+        layout.prop(build_props, "body")
         layout.prop(build_props, "output_dir")
         
         # button to actually build the outfit
@@ -67,14 +70,23 @@ class BuildOutfit(bpy.types.Operator):
         
         context.scene.ls_properties.game = 'bg3'
         
+        body = build_props.body
+        print("selected body prop", build_props.body)
+        
         selection = context.selected_objects
-        if len(selection) < 2:
-            raise Exception("Need to select the body first then at least one armor mesh")
-            
-        body = selection[0]
+        # either body is given explicitly, or we use the first in the selection
+        if body is not None:
+            armors = selection
+        else:
+            if len(selection) < 2:
+                raise Exception("Body is not specified so it will be taken as the first in the selection. Select the body first then at least one armor mesh")
+            armors = selection[1:]
+
+        print("selection", selection)
+        
         view_layer = context.view_layer
 
-        for armor in selection[1:]:
+        for armor in armors:
             print("building ", armor.name)
             
             armor.mesh_data_transfer_object.mesh_source = body
