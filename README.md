@@ -6,6 +6,10 @@ Quick demo video
 
 https://github.com/PerplexedPeach/outfit_builder/assets/48222967/4ca17361-6015-47ef-b07e-e08c4c2b195b
 
+1.1 also allows manually specifying the body instead of using the first selected item
+
+https://github.com/PerplexedPeach/outfit_builder/assets/48222967/e61b6084-235b-4f97-bd7a-fa143f2e8de4
+
 
 
 ## Installation
@@ -33,13 +37,14 @@ If you already have body shapes defined as separate meshes (such as by proportio
 
 ![2023-10-22 00_30_06-Window](https://github.com/PerplexedPeach/outfit_builder/assets/48222967/861b03b9-8810-4c94-806c-e599b144bf4d)
 
-You then need to multiselect the body first, then a number of armor pieces. These should all belong to the same armature, so don't mix HUM_F and HUM_FS armor pieces, for example.
+You then need to multiselect the body first, then a number of armor pieces. Since 1.1, you can also explicitly set the body (see video above). These should all belong to the same armature, so don't mix HUM_F and HUM_FS armor pieces, for example.
 Then you **run the outfit builder** on them by pressing `Build Outfits` or pressing hotkeys `Shift` + `Ctrl` + `B`. 
 
 The different options explained:
 - Export: Whether to export to GR2, or to just generate the different mesh variants inside blender. You need to have the [dos2de collada exporter](https://github.com/Norbyte/dos2de_collada_exporter) add-on to actually export. Running it may freeze the blender UI for a while, but just wait. The name of the exported meshes will be `<body name>_<armor name>_<shape name>.GR2`
 - Hide shapes after export: Whether to hide the shape variant meshes after generating them. This is only meaningful if you don't remove shapes after export.
 - Remove shapes after export: Whether to remove the shape variant meshes after exporting them.
+- Body Mesh: Explictly set the body to take the shape keys from. Necessary in certain cases where multi-selection does not let you select the body first.
 - Output dir: Directory to export the GR2 files. If empty, the local directory of the blender file will be used.
 
 ## Shape Key Tips
