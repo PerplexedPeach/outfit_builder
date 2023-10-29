@@ -236,6 +236,17 @@ def do_transfer_shapes(body, armor, view_layer):
 
     bpy.ops.object.transfer_mesh_data()
 
+def common_prefix(strs):
+    if not strs:
+        return ""
+
+    shortest = min(strs, key=len)
+
+    for i, char in enumerate(shortest):
+        for other in strs:
+            if other[i] != char:
+                return shortest[:i]
+    return shortest
 
 class BuildOutfit(bpy.types.Operator):
     """
@@ -282,7 +293,65 @@ class BuildOutfit(bpy.types.Operator):
         return {'FINISHED'}
 
     def do_export_combine(self, context, build_props, body, basedir, armors, shapes, i, view_layer):
-        pass
+        for armor in armors:
+            armor.select_set(True)
+            view_layer.objects.active = armor
+
+        bpy.ops.object.duplicate(linked=False)
+
+        bs_name = shapes[i].name
+        print('Shape key ', i, ' ', bs_name)
+
+        new_armors = context.selected_objects
+        # deselect everything then select one at a time
+        for armor in new_armors:
+            armor.select_set(False)
+        
+        names = []
+        for armor in new_armors:
+            armor.select_set(True)
+            view_layer.objects.active = armor
+            armor.active_shape_key_index = i
+            armor.active_shape_key.value = 1
+
+            armor_name = bpy.path.clean_name(armor.name)
+            # use _ to indicate FS and other variants - this way they can have the same name apart from prefix
+            armor_name = armor_name.rstrip("_001").strip("_")
+            name = f"{body.name}_{armor_name}_{bpy.path.clean_name(bs_name)}"
+            armor.name = name
+            armor.data.name = name
+            names.append(name)
+
+            # apply shape key
+            bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
+                
+            armor.select_set(False)
+        
+        print(names)
+        # use some heuristics for determining export file name
+        # first find what the common prefix is
+        fn = os.path.join(basedir, f"{common_prefix(names)}_{bpy.path.clean_name(bs_name)}")
+        print(fn)
+
+        # select everything again
+        for armor in new_armors:
+            armor.select_set(True)
+        if build_props.export:
+            bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2",
+                                                use_export_selected=True)
+            self.report({'INFO'}, f"Saving to {fn}")
+        else:
+            self.report({'INFO'}, f"Just creating the variants")
+
+        if build_props.remove_shape_after_export:
+            bpy.ops.object.delete()
+        else:
+            for armor in new_armors:
+                if build_props.hide_shape_after_export:
+                    armor.hide_viewport = True
+                armor.select_set(False)
+
+
 
     def do_export_separate(self, context, build_props, body, basedir, armors, shapes, i, view_layer):
         for armor in armors:
