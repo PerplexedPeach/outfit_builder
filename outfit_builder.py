@@ -1,7 +1,7 @@
 bl_info = {
     "name"    : "Outfit Builder",
     "author"  : "LazyIcarus",
-    "version" : (1, 3),
+    "version" : (1, 4),
     "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -24,6 +24,8 @@ class BuildProperties(bpy.types.PropertyGroup):
     body: bpy.props.PointerProperty(name="Body Mesh", type=bpy.types.Object)
     # for auto building the LSX (XML format) file describing the exported meshes
     lsx: bpy.props.StringProperty(name="LSX in", default="", subtype="FILE_PATH")
+    # for multi-object GR2 export (with different Export order)
+    combine_export: bpy.props.BoolProperty(name="Combine before export", default=False)
 
 
 class BuildPanel(bpy.types.Panel):
@@ -41,6 +43,7 @@ class BuildPanel(bpy.types.Panel):
         layout.prop(build_props, "export")
         layout.prop(build_props, "hide_shape_after_export")
         layout.prop(build_props, "remove_shape_after_export")
+        layout.prop(build_props, "combine_export")
         layout.prop(build_props, "body")
         layout.prop(build_props, "output_dir")
 
@@ -223,6 +226,17 @@ class BuildVisualBank(bpy.types.Operator):
         return {'FINISHED'}
 
 
+def do_transfer_shapes(body, armor, view_layer):
+    armor.mesh_data_transfer_object.mesh_source = body
+    armor.mesh_data_transfer_object.attributes_to_transfer = 'SHAPE_KEYS'
+    armor.mesh_data_transfer_object.mesh_object_space = 'WORLD'
+    # need to set the armor as the context for this operation
+    view_layer.objects.active = armor
+    armor.select_set(True)
+
+    bpy.ops.object.transfer_mesh_data()
+
+
 class BuildOutfit(bpy.types.Operator):
     """
     Given a body and its variants as shape keys, for each selected armor generate
@@ -248,74 +262,72 @@ class BuildOutfit(bpy.types.Operator):
         context.scene.ls_properties.game = 'bg3'
 
         body, armors = get_body_and_armors_from_context(context)
+        shapes = body.data.shape_keys.key_blocks
 
         view_layer = context.view_layer
 
         for armor in armors:
             print("building ", armor.name)
+            do_transfer_shapes(body, armor, view_layer)
 
-            armor.mesh_data_transfer_object.mesh_source = body
-            armor.mesh_data_transfer_object.attributes_to_transfer = 'SHAPE_KEYS'
-            armor.mesh_data_transfer_object.mesh_object_space = 'WORLD'
-            # need to set the armor as the context for this operation
-            view_layer.objects.active = armor
-            armor.select_set(True)
-
-            bpy.ops.object.transfer_mesh_data()
-
-            armor_shapes = armor.data.shape_keys.key_blocks
-            shape_keys_ind = range(0, len(armor_shapes))
-
+        for i in range(len(shapes)):
             for ob in context.selected_objects:
                 ob.select_set(False)
 
-            for i in shape_keys_ind:
-                armor.select_set(True)
-                view_layer.objects.active = armor
-
-                if build_props.duplicate_instead_of_copy:
-                    bpy.ops.object.duplicate(linked=False)
-                    armor_shape = context.active_object
-                else:
-                    armor_shape = armor.copy()
-                    armor_shape.data = armor.data.copy()
-                    context.collection.objects.link(armor_shape)
-
-                armor_shape.active_shape_key_index = i
-                armor_shape.active_shape_key.value = 1
-
-                bs_name = armor_shapes[i].name
-                print('Shape key ', i, ' ', bs_name)
-                armor_name = bpy.path.clean_name(armor.name)
-                # use _ to indicate FS and other variants - this way they can have the same name apart from prefix
-                armor_name = armor_name.strip("_")
-                name = f"{body.name}_{armor_name}_{bpy.path.clean_name(bs_name)}"
-                armor_shape.name = name
-                armor_shape.data.name = name
-
-                # apply shape key
-                bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
-
-                fn = os.path.join(basedir, name)
-                print(fn)
-
-                if build_props.export:
-                    bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2",
-                                                        use_export_selected=True)
-                    self.report({'INFO'}, f"Saving to {fn}")
-                else:
-                    self.report({'INFO'}, f"Creating {name}")
-
-                if build_props.remove_shape_after_export:
-                    bpy.ops.object.delete()
-                else:
-                    if build_props.hide_shape_after_export:
-                        armor_shape.hide_viewport = True
-                    armor_shape.select_set(False)
-
-        #            self.report({'INFO'}, f"Finished building {armor.name}")
+            if build_props.combine_export:
+                self.do_export_combine(context, build_props, body, basedir, armors, shapes, i, view_layer)
+            else:
+                self.do_export_separate(context, build_props, body, basedir, armors, shapes, i, view_layer)
 
         return {'FINISHED'}
+
+    def do_export_combine(self, context, build_props, body, basedir, armors, shapes, i, view_layer):
+        pass
+
+    def do_export_separate(self, context, build_props, body, basedir, armors, shapes, i, view_layer):
+        for armor in armors:
+            armor.select_set(True)
+            view_layer.objects.active = armor
+
+            if build_props.duplicate_instead_of_copy:
+                bpy.ops.object.duplicate(linked=False)
+                armor_shape = context.active_object
+            else:
+                armor_shape = armor.copy()
+                armor_shape.data = armor.data.copy()
+                context.collection.objects.link(armor_shape)
+
+            armor_shape.active_shape_key_index = i
+            armor_shape.active_shape_key.value = 1
+
+            bs_name = shapes[i].name
+            print('Shape key ', i, ' ', bs_name)
+            armor_name = bpy.path.clean_name(armor.name)
+            # use _ to indicate FS and other variants - this way they can have the same name apart from prefix
+            armor_name = armor_name.strip("_")
+            name = f"{body.name}_{armor_name}_{bpy.path.clean_name(bs_name)}"
+            armor_shape.name = name
+            armor_shape.data.name = name
+
+            # apply shape key
+            bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
+
+            fn = os.path.join(basedir, name)
+            print(fn)
+
+            if build_props.export:
+                bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2",
+                                                    use_export_selected=True)
+                self.report({'INFO'}, f"Saving to {fn}")
+            else:
+                self.report({'INFO'}, f"Creating {name}")
+
+            if build_props.remove_shape_after_export:
+                bpy.ops.object.delete()
+            else:
+                if build_props.hide_shape_after_export:
+                    armor_shape.hide_viewport = True
+                armor_shape.select_set(False)
 
 
 def menu_func(self, context):
