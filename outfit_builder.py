@@ -1,7 +1,7 @@
 bl_info = {
     "name"    : "Outfit Builder",
     "author"  : "LazyIcarus",
-    "version" : (1, 4),
+    "version" : (1, 4, 1),
     "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -113,7 +113,15 @@ def pretty_print_node(node_of_interest):
     pretty_str = '\n'.join([line for line in pretty_str.split('\n') if line.strip()])
     print(pretty_str)
 
-
+BASIS = "_Basis"
+def replace_node_name(node, full_name, new_name):
+    name = node.get('value')
+    if BASIS in name and BASIS not in full_name:
+        name = name.replace(full_name + BASIS, new_name)
+    else:
+        name = name.replace(full_name, new_name)
+    node.set('value', name)
+    
 def replace_node_attributes(shape, node, name, full_name):
     bs_name = shape.name
     print('Shape key ', bs_name)
@@ -132,22 +140,13 @@ def replace_node_attributes(shape, node, name, full_name):
     id_node.set('value', new_id)
 
     # get SourceFile and Template, and replace their full_name with name
-    source_file_attribute = new_node.find('.//attribute[@id="SourceFile"]')
-    source_file = source_file_attribute.get('value')
-    source_file = source_file.replace(full_name, new_name)
-    source_file_attribute.set('value', source_file)
-
-    template_attribute = new_node.find('.//attribute[@id="Template"]')
-    template = template_attribute.get('value')
-    template = template.replace(full_name, new_name)
-    template_attribute.set('value', template)
+    replace_node_name(new_node.find('.//attribute[@id="SourceFile"]'), full_name, new_name)
+    replace_node_name(new_node.find('.//attribute[@id="Template"]'), full_name, new_name)
 
     # then do the same for .//children/node[@id="Objects"]/attribute[@id="ObjectID"] (find all)
     object_id_attributes = new_node.findall('.//children/node[@id="Objects"]/attribute[@id="ObjectID"]')
     for object_id_attribute in object_id_attributes:
-        object_id = object_id_attribute.get('value')
-        object_id = object_id.replace(full_name, new_name)
-        object_id_attribute.set('value', object_id)
+        replace_node_name(object_id_attribute, full_name, new_name)
 
     return new_node
 
@@ -156,7 +155,7 @@ def replace_node_with_shapes(root, shapes, node):
     name_attribute = node.find('.//attribute[@id="Name"]')
     # Expects 2 conventions - either it finishes with Basis, or we assume it's the name without _Basis
     full_name = name_attribute.get('value')
-    name = full_name.rstrip('_Basis')
+    name = full_name.rstrip(BASIS)
     print(f"Name: {name}")
 
     # replace the old node with our new copies
@@ -221,8 +220,9 @@ class BuildVisualBank(bpy.types.Operator):
             replace_node_with_shapes(root, shapes, node)
 
         # save to the base_lsx but with _generated attached at the end of its filename
-        tree.write(base_lsx.replace(".lsf.lsx", "_generated.lsf.lsx"), encoding='utf-8', xml_declaration=True)
-
+        output_fn = base_lsx.replace(".lsf.lsx", "_generated.lsf.lsx")
+        tree.write(output_fn, encoding='utf-8', xml_declaration=True)
+        self.report({'INFO'}, f"Visual Bank built at {output_fn}")
         return {'FINISHED'}
 
 
