@@ -1,8 +1,8 @@
 bl_info = {
-    "name": "Outfit Builder",
-    "author": "LazyIcarus",
-    "version" : (1, 1),
-    "blender": (3, 1, 0),
+    "name"    : "Outfit Builder",
+    "author"  : "LazyIcarus",
+    "version" : (1, 2),
+    "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
 }
@@ -10,6 +10,11 @@ bl_info = {
 import bpy
 import os
 import time
+import uuid
+import xml
+import xml.etree.ElementTree as ET
+from xml.dom.minidom import parseString
+from copy import deepcopy
 
 
 class BuildProperties(bpy.types.PropertyGroup):
@@ -19,8 +24,10 @@ class BuildProperties(bpy.types.PropertyGroup):
     export: bpy.props.BoolProperty(name="Export", default=True)
     output_dir: bpy.props.StringProperty(name="Output dir", default="", subtype="DIR_PATH")
     body: bpy.props.PointerProperty(name="Body Mesh", type=bpy.types.Object)
-    
-    
+    # for auto building the LSX (XML format) file describing the exported meshes
+    lsx: bpy.props.StringProperty(name="LSX in", default="", subtype="FILE_PATH")
+
+
 class BuildPanel(bpy.types.Panel):
     bl_label = "Outfit Builder"
     bl_idname = "OBJECT_PT_properties_panel"
@@ -28,10 +35,9 @@ class BuildPanel(bpy.types.Panel):
     bl_region_type = "UI"
     bl_category = "Outfit Builder"
 
-    
     def draw(self, context):
         layout = self.layout
-        
+
         # allow modifying the properties on the scene
         build_props = context.scene.outfit_builder
         layout.prop(build_props, "export")
@@ -39,11 +45,180 @@ class BuildPanel(bpy.types.Panel):
         layout.prop(build_props, "remove_shape_after_export")
         layout.prop(build_props, "body")
         layout.prop(build_props, "output_dir")
-        
+
         # button to actually build the outfit
         row = layout.row()
         build = row.operator(BuildOutfit.bl_idname)
-        
+
+        # # add subpanel for building LSX
+        # layout.label(text="LSX Builder")
+
+
+class BuildVisualBankPanel(bpy.types.Panel):
+    bl_label = "VisualBank (LSX) Builder"
+    bl_idname = "OBJECT_PT_visual_bank_panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Outfit Builder"
+
+    def draw(self, context):
+        layout = self.layout
+
+        # allow modifying the properties on the scene
+        build_props = context.scene.outfit_builder
+        layout.prop(build_props, "lsx")
+
+        # button to actually build the outfit
+        row = layout.row()
+        build = row.operator(BuildVisualBank.bl_idname)
+
+
+def get_body_and_armors_from_context(context, require_armor=True):
+    build_props = context.scene.outfit_builder
+
+    body = build_props.body
+    print("selected body prop", build_props.body)
+
+    selection = context.selected_objects
+    # either body is given explicitly, or we use the first in the selection
+    if body is not None:
+        armors = selection
+    else:
+        if len(selection) > 0:
+            body = selection[0]
+        if len(selection) > 1:
+            armors = selection[1:]
+
+    print("selection", selection)
+    if body is None:
+        raise Exception("No body (object with shape keys) is specified")
+    if require_armor and len(armors) == 0:
+        raise Exception("No armor meshes are selected")
+
+    return body, armors
+
+def find_parent(root, element):
+    for parent in root.iter():
+        for child in parent:
+            if child is element:
+                return parent
+    return None
+
+def pretty_print_node(node_of_interest):
+    raw_str = ET.tostring(node_of_interest, 'utf-8')
+    reparsed = parseString(raw_str)
+    pretty_str = reparsed.toprettyxml(indent="\t")
+    pretty_str = '\n'.join([line for line in pretty_str.split('\n') if line.strip()])
+    print(pretty_str)
+
+
+def replace_node_attributes(shape, node, name, full_name):
+    bs_name = shape.name
+    print('Shape key ', bs_name)
+    new_name = f"{name}_{bpy.path.clean_name(bs_name)}"
+    print(f"New name: {new_name}")
+
+    new_node = deepcopy(node)
+    new_node.text = f" {new_name}\n\t\t\t\t\t"
+
+    name_attribute = new_node.find('.//attribute[@id="Name"]')
+    name_attribute.set('value', new_name)
+
+    # Generate a new UUID and set it as 'ID' attribute
+    new_id = str(uuid.uuid4())
+    id_node = new_node.find('.//attribute[@id="ID"]')
+    id_node.set('value', new_id)
+
+    # get SourceFile and Template, and replace their full_name with name
+    source_file_attribute = new_node.find('.//attribute[@id="SourceFile"]')
+    source_file = source_file_attribute.get('value')
+    source_file = source_file.replace(full_name, new_name)
+    source_file_attribute.set('value', source_file)
+
+    template_attribute = new_node.find('.//attribute[@id="Template"]')
+    template = template_attribute.get('value')
+    template = template.replace(full_name, new_name)
+    template_attribute.set('value', template)
+
+    # then do the same for .//children/node[@id="Objects"]/attribute[@id="ObjectID"] (find all)
+    object_id_attributes = new_node.findall('.//children/node[@id="Objects"]/attribute[@id="ObjectID"]')
+    for object_id_attribute in object_id_attributes:
+        object_id = object_id_attribute.get('value')
+        object_id = object_id.replace(full_name, new_name)
+        object_id_attribute.set('value', object_id)
+
+    return new_node
+
+
+class BuildVisualBank(bpy.types.Operator):
+    """
+    Given a LSX file of VisualBank information for the basis mesh, generate
+    LSX VisualBank entries for each variant for each selected armor
+    """
+    bl_idname = "object.build_visual_bank"
+    bl_label = "Build Visual Bank"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        build_props = context.scene.outfit_builder
+        # defaults to current directory
+        base_lsx = build_props.lsx
+        if not os.path.exists(base_lsx):
+            raise RuntimeError(f"LSX file {base_lsx} does not exist")
+        if not base_lsx.endswith("lsf.lsx"):
+            raise RuntimeError(f"LSX file {base_lsx} does not end with lsf.lsx")
+
+        print("Parsing LSX file", base_lsx)
+        tree = ET.parse(base_lsx)
+        # navigate under region id="VisualBank" node id="VisualBank"
+        root = tree.getroot()
+        print(root)
+
+        body, _ = get_body_and_armors_from_context(context, require_armor=False)
+
+        shapes = body.data.shape_keys.key_blocks
+        # skip basis
+        shape_keys_ind = range(1, len(shapes))
+
+        # expect the first shape key to be called Basis
+        if shapes[0].name != "Basis":
+            raise RuntimeError(f"Expect the first shape key to be called Basis, but instead got {shapes[0].name}")
+
+        # Specify the path to the 'node' of interest
+        path = './/region[@id="VisualBank"]/node[@id="VisualBank"]/children/node[@id="Resource"]'
+
+        # Find the 'node' of interest
+        node_of_interest = root.find(path)
+
+        # Check if the 'node' was found
+        if node_of_interest is None:
+            raise RuntimeError(f"VisualBank node was not found in {base_lsx}")
+
+        name_attribute = node_of_interest.find('.//attribute[@id="Name"]')
+        # Expects 2 conventions - either it finishes with Basis, or we assume it's the name without _Basis
+        full_name = name_attribute.get('value')
+        name = full_name.rstrip('_Basis')
+        print(f"Name: {name}")
+
+        # replace the old node with our new copies
+        parent = find_parent(root, node_of_interest)
+        # Get the index of the old node in its parent
+        index = list(parent).index(node_of_interest)
+        new_nodes = []
+
+        for i in shape_keys_ind:
+            new_nodes.append(replace_node_attributes(shapes[i], node_of_interest, name, full_name))
+
+        parent.remove(node_of_interest)
+        for new_node in new_nodes:
+            parent.insert(index, new_node)
+            index += 1
+
+        # save to the base_lsx but with _generated attached at the end of its filename
+        tree.write(base_lsx.replace(".lsf.lsx", "_generated.lsf.lsx"), encoding='utf-8', xml_declaration=True)
+
+        return {'FINISHED'}
+
 
 class BuildOutfit(bpy.types.Operator):
     """
@@ -61,34 +236,21 @@ class BuildOutfit(bpy.types.Operator):
     bl_idname = "object.build_outfit"
     bl_label = "Build Outfits"
     bl_options = {'REGISTER', 'UNDO'}
-    
 
     def execute(self, context):
         build_props = context.scene.outfit_builder
         # defaults to current directory
         basedir = build_props.output_dir or os.path.dirname(bpy.data.filepath)
-        
-        context.scene.ls_properties.game = 'bg3'
-        
-        body = build_props.body
-        print("selected body prop", build_props.body)
-        
-        selection = context.selected_objects
-        # either body is given explicitly, or we use the first in the selection
-        if body is not None:
-            armors = selection
-        else:
-            if len(selection) < 2:
-                raise Exception("Body is not specified so it will be taken as the first in the selection. Select the body first then at least one armor mesh")
-            armors = selection[1:]
 
-        print("selection", selection)
-        
+        context.scene.ls_properties.game = 'bg3'
+
+        body, armors = get_body_and_armors_from_context(context)
+
         view_layer = context.view_layer
 
         for armor in armors:
             print("building ", armor.name)
-            
+
             armor.mesh_data_transfer_object.mesh_source = body
             armor.mesh_data_transfer_object.attributes_to_transfer = 'SHAPE_KEYS'
             armor.mesh_data_transfer_object.mesh_object_space = 'WORLD'
@@ -98,13 +260,12 @@ class BuildOutfit(bpy.types.Operator):
 
             bpy.ops.object.transfer_mesh_data()
 
-
             armor_shapes = armor.data.shape_keys.key_blocks
             shape_keys_ind = range(0, len(armor_shapes))
 
             for ob in context.selected_objects:
                 ob.select_set(False)
-                
+
             for i in shape_keys_ind:
                 armor.select_set(True)
                 view_layer.objects.active = armor
@@ -116,10 +277,10 @@ class BuildOutfit(bpy.types.Operator):
                     armor_shape = armor.copy()
                     armor_shape.data = armor.data.copy()
                     context.collection.objects.link(armor_shape)
-                    
+
                 armor_shape.active_shape_key_index = i
                 armor_shape.active_shape_key.value = 1
-                
+
                 bs_name = armor_shapes[i].name
                 print('Shape key ', i, ' ', bs_name)
                 armor_name = bpy.path.clean_name(armor.name)
@@ -128,15 +289,16 @@ class BuildOutfit(bpy.types.Operator):
                 name = f"{body.name}_{armor_name}_{bpy.path.clean_name(bs_name)}"
                 armor_shape.name = name
                 armor_shape.data.name = name
-                
+
                 # apply shape key
                 bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
-                
+
                 fn = os.path.join(basedir, name)
                 print(fn)
-                
+
                 if build_props.export:
-                    bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2", use_export_selected=True)
+                    bpy.ops.export_scene.dos2de_collada(filepath=fn + ".GR2", check_existing=False, filename_ext=".GR2",
+                                                        use_export_selected=True)
                     self.report({'INFO'}, f"Saving to {fn}")
                 else:
                     self.report({'INFO'}, f"Creating {name}")
@@ -147,17 +309,20 @@ class BuildOutfit(bpy.types.Operator):
                     if build_props.hide_shape_after_export:
                         armor_shape.hide_viewport = True
                     armor_shape.select_set(False)
-            
-#            self.report({'INFO'}, f"Finished building {armor.name}")
-            
+
+        #            self.report({'INFO'}, f"Finished building {armor.name}")
+
         return {'FINISHED'}
+
 
 def menu_func(self, context):
     self.layout.operator(BuildOutfit.bl_idname)
-        
+
+
 addon_keymaps = []
 
-classes = [BuildOutfit, BuildPanel, BuildProperties]
+classes = [BuildOutfit, BuildPanel, BuildProperties, BuildVisualBank, BuildVisualBankPanel]
+
 
 def register():
     for cls in classes:
@@ -165,15 +330,16 @@ def register():
 
     bpy.types.VIEW3D_MT_object.append(menu_func)
     bpy.types.Scene.outfit_builder = bpy.props.PointerProperty(type=BuildProperties)
-    
+
     # handle the keymap
     wm = bpy.context.window_manager
     km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
-    
+
     kmi = km.keymap_items.new(BuildOutfit.bl_idname, 'B', 'PRESS', ctrl=True, shift=True)
-    
+
     addon_keymaps.append((km, kmi))
-    
+
+
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
@@ -183,6 +349,7 @@ def unregister():
     for km, kmi in addon_keymaps:
         km.keymap_items.remove(kmi)
     addon_keymaps.clear()
-    
+
+
 if __name__ == "__main__":
     register()
