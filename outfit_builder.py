@@ -1,7 +1,7 @@
 bl_info = {
     "name"    : "Outfit Builder",
     "author"  : "LazyIcarus",
-    "version" : (1, 2),
+    "version" : (1, 3),
     "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -9,9 +9,7 @@ bl_info = {
 # exports each selected object into its own file
 import bpy
 import os
-import time
 import uuid
-import xml
 import xml.etree.ElementTree as ET
 from xml.dom.minidom import parseString
 from copy import deepcopy
@@ -86,8 +84,7 @@ def get_body_and_armors_from_context(context, require_armor=True):
     else:
         if len(selection) > 0:
             body = selection[0]
-        if len(selection) > 1:
-            armors = selection[1:]
+        armors = selection[1:]
 
     print("selection", selection)
     if body is None:
@@ -97,12 +94,14 @@ def get_body_and_armors_from_context(context, require_armor=True):
 
     return body, armors
 
+
 def find_parent(root, element):
     for parent in root.iter():
         for child in parent:
             if child is element:
                 return parent
     return None
+
 
 def pretty_print_node(node_of_interest):
     raw_str = ET.tostring(node_of_interest, 'utf-8')
@@ -150,6 +149,29 @@ def replace_node_attributes(shape, node, name, full_name):
     return new_node
 
 
+def replace_node_with_shapes(root, shapes, node):
+    name_attribute = node.find('.//attribute[@id="Name"]')
+    # Expects 2 conventions - either it finishes with Basis, or we assume it's the name without _Basis
+    full_name = name_attribute.get('value')
+    name = full_name.rstrip('_Basis')
+    print(f"Name: {name}")
+
+    # replace the old node with our new copies
+    parent = find_parent(root, node)
+    # Get the index of the old node in its parent
+    index = list(parent).index(node)
+    new_nodes = []
+
+    # skip basis
+    for i in range(1, len(shapes)):
+        new_nodes.append(replace_node_attributes(shapes[i], node, name, full_name))
+
+    parent.remove(node)
+    for new_node in new_nodes:
+        parent.insert(index, new_node)
+        index += 1
+
+
 class BuildVisualBank(bpy.types.Operator):
     """
     Given a LSX file of VisualBank information for the basis mesh, generate
@@ -177,8 +199,6 @@ class BuildVisualBank(bpy.types.Operator):
         body, _ = get_body_and_armors_from_context(context, require_armor=False)
 
         shapes = body.data.shape_keys.key_blocks
-        # skip basis
-        shape_keys_ind = range(1, len(shapes))
 
         # expect the first shape key to be called Basis
         if shapes[0].name != "Basis":
@@ -188,31 +208,14 @@ class BuildVisualBank(bpy.types.Operator):
         path = './/region[@id="VisualBank"]/node[@id="VisualBank"]/children/node[@id="Resource"]'
 
         # Find the 'node' of interest
-        node_of_interest = root.find(path)
+        nodes_to_replace = root.findall(path)
 
         # Check if the 'node' was found
-        if node_of_interest is None:
-            raise RuntimeError(f"VisualBank node was not found in {base_lsx}")
+        if nodes_to_replace is None or nodes_to_replace == []:
+            raise RuntimeError(f"VisualBank nodes were not found in {base_lsx}")
 
-        name_attribute = node_of_interest.find('.//attribute[@id="Name"]')
-        # Expects 2 conventions - either it finishes with Basis, or we assume it's the name without _Basis
-        full_name = name_attribute.get('value')
-        name = full_name.rstrip('_Basis')
-        print(f"Name: {name}")
-
-        # replace the old node with our new copies
-        parent = find_parent(root, node_of_interest)
-        # Get the index of the old node in its parent
-        index = list(parent).index(node_of_interest)
-        new_nodes = []
-
-        for i in shape_keys_ind:
-            new_nodes.append(replace_node_attributes(shapes[i], node_of_interest, name, full_name))
-
-        parent.remove(node_of_interest)
-        for new_node in new_nodes:
-            parent.insert(index, new_node)
-            index += 1
+        for node in nodes_to_replace:
+            replace_node_with_shapes(root, shapes, node)
 
         # save to the base_lsx but with _generated attached at the end of its filename
         tree.write(base_lsx.replace(".lsf.lsx", "_generated.lsf.lsx"), encoding='utf-8', xml_declaration=True)
