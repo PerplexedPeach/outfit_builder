@@ -53,3 +53,17 @@ Shape keys are used for body sliders and so on (can also be used in animations).
 
 ![2023-10-22 13_14_07-Window](https://github.com/PerplexedPeach/outfit_builder/assets/48222967/b3985059-9a74-499f-831b-a90201b2f532)
 
+## VisualBank (LSX) Generation
+New in 1.2, you can now generate the VisualBank resources. You need to have a single VisualBank resource defined for your basis mesh. Select it in the LSX in under the VisualBank (LSX) Builder panel. You do not need to have any armor selected inside blender, but a body should be either be set or selected.
+
+![image](https://github.com/PerplexedPeach/outfit_builder/assets/48222967/1f637c40-6adb-4722-86b8-865cf71be303)
+
+Sample such LSX file (it needs to have suffix lsf.lsx). Only the basis mesh should be defined, and the Name should match the prefix of the filename. If the name ends with "_Basis" then that will be stripped (e.g. `HUM_F_LI_Nightsong_Basis` becomes `HUM_F_LI_Nightsong`).
+![image](https://github.com/PerplexedPeach/outfit_builder/assets/48222967/267734a0-45ce-4eec-ac73-531d5ff643e9)
+
+Clicking the Build Visual Bank will generate a file with the same filename as the input LSX but with a `_generated` suffix. One VisualBank resource will be generated per body shape key (except Basis) per VisualBank in the input file. Each one will have name `<name>_<shape key name>`, and already have a UUID generated.
+
+![image](https://github.com/PerplexedPeach/outfit_builder/assets/48222967/9640f7fd-027c-413d-bcae-4d51d36a1c95)
+
+![image](https://github.com/PerplexedPeach/outfit_builder/assets/48222967/18836e55-bd4b-44c2-aadc-8dc9a920ea04)
+
