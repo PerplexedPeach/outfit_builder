@@ -1,7 +1,7 @@
 bl_info = {
     "name"    : "Outfit Builder",
     "author"  : "LazyIcarus",
-    "version" : (1, 4, 1),
+    "version" : (1, 4, 2),
     "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -227,13 +227,15 @@ class BuildVisualBank(bpy.types.Operator):
 
 
 def do_transfer_shapes(body, armor, view_layer):
+    
     armor.mesh_data_transfer_object.mesh_source = body
     armor.mesh_data_transfer_object.attributes_to_transfer = 'SHAPE_KEYS'
     armor.mesh_data_transfer_object.mesh_object_space = 'WORLD'
     # need to set the armor as the context for this operation
     view_layer.objects.active = armor
     armor.select_set(True)
-
+    # first remove all previous shape keys on it
+    bpy.ops.object.shape_key_remove(all=True, apply_mix=False)
     bpy.ops.object.transfer_mesh_data()
 
 def common_prefix(strs):
@@ -277,14 +279,14 @@ class BuildOutfit(bpy.types.Operator):
 
         view_layer = context.view_layer
 
+        for ob in context.selected_objects:
+            ob.select_set(False)
+                
         for armor in armors:
             print("building ", armor.name)
             do_transfer_shapes(body, armor, view_layer)
 
         for i in range(len(shapes)):
-            for ob in context.selected_objects:
-                ob.select_set(False)
-
             if build_props.combine_export:
                 self.do_export_combine(context, build_props, body, basedir, armors, shapes, i, view_layer)
             else:
