@@ -1,7 +1,7 @@
 bl_info = {
     "name"    : "Outfit Builder",
     "author"  : "LazyIcarus",
-    "version" : (1, 4, 2),
+    "version" : (1, 4, 3),
     "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -235,7 +235,8 @@ def do_transfer_shapes(body, armor, view_layer):
     view_layer.objects.active = armor
     armor.select_set(True)
     # first remove all previous shape keys on it
-    bpy.ops.object.shape_key_remove(all=True, apply_mix=False)
+    if armor.data.shape_keys is not None:
+        bpy.ops.object.shape_key_remove(all=True, apply_mix=False)
     bpy.ops.object.transfer_mesh_data()
 
 def common_prefix(strs):
