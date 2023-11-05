@@ -1,7 +1,7 @@
 bl_info = {
     "name"    : "Outfit Builder",
     "author"  : "LazyIcarus",
-    "version" : (1, 4, 4),
+    "version" : (1, 4, 5),
     "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -113,15 +113,21 @@ def pretty_print_node(node_of_interest):
     pretty_str = '\n'.join([line for line in pretty_str.split('\n') if line.strip()])
     print(pretty_str)
 
+
 BASIS = "_Basis"
+
+
 def replace_node_name(node, full_name, new_name):
+    if node is None:
+        return
     name = node.get('value')
     if BASIS in name and BASIS not in full_name:
         name = name.replace(full_name + BASIS, new_name)
     else:
         name = name.replace(full_name, new_name)
     node.set('value', name)
-    
+
+
 def replace_node_attributes(shape, node, name, full_name):
     bs_name = shape.name
     print('Shape key ', bs_name)
@@ -147,6 +153,11 @@ def replace_node_attributes(shape, node, name, full_name):
     object_id_attributes = new_node.findall('.//children/node[@id="Objects"]/attribute[@id="ObjectID"]')
     for object_id_attribute in object_id_attributes:
         replace_node_name(object_id_attribute, full_name, new_name)
+
+    # also do this for cloth parameters if they exist
+    cloth_param_attributes = new_node.findall('.//children/node[@id="ClothParams"]/attribute[@id="UUID"]')
+    for cloth_param_attribute in cloth_param_attributes:
+        replace_node_name(cloth_param_attribute, full_name, new_name)
 
     return new_node
 
@@ -227,7 +238,6 @@ class BuildVisualBank(bpy.types.Operator):
 
 
 def do_transfer_shapes(body, armor, view_layer):
-    
     armor.mesh_data_transfer_object.mesh_source = body
     armor.mesh_data_transfer_object.attributes_to_transfer = 'SHAPE_KEYS'
     armor.mesh_data_transfer_object.mesh_object_space = 'WORLD'
@@ -238,6 +248,7 @@ def do_transfer_shapes(body, armor, view_layer):
     if armor.data.shape_keys is not None:
         bpy.ops.object.shape_key_remove(all=True, apply_mix=False)
     bpy.ops.object.transfer_mesh_data()
+
 
 def common_prefix(strs):
     if not strs:
@@ -250,6 +261,7 @@ def common_prefix(strs):
             if other[i] != char:
                 return shortest[:i]
     return shortest
+
 
 class BuildOutfit(bpy.types.Operator):
     """
@@ -282,7 +294,7 @@ class BuildOutfit(bpy.types.Operator):
 
         for ob in context.selected_objects:
             ob.select_set(False)
-                
+
         for armor in armors:
             print("building ", armor.name)
             do_transfer_shapes(body, armor, view_layer)
@@ -309,7 +321,7 @@ class BuildOutfit(bpy.types.Operator):
         # deselect everything then select one at a time
         for armor in new_armors:
             armor.select_set(False)
-        
+
         names = []
         for armor in new_armors:
             armor.select_set(True)
@@ -327,9 +339,9 @@ class BuildOutfit(bpy.types.Operator):
 
             # apply shape key
             bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
-                
+
             armor.select_set(False)
-        
+
         print(names)
         # use some heuristics for determining export file name
         # first find what the common prefix is
@@ -354,13 +366,11 @@ class BuildOutfit(bpy.types.Operator):
                     armor.hide_viewport = True
                 armor.select_set(False)
 
-
-
     def do_export_separate(self, context, build_props, body, basedir, armors, shapes, i, view_layer):
         for armor in armors:
             for ob in context.selected_objects:
                 ob.select_set(False)
-            
+
             armor.select_set(True)
             view_layer.objects.active = armor
 
