@@ -1,7 +1,7 @@
 bl_info = {
     "name"    : "Outfit Builder",
     "author"  : "LazyIcarus",
-    "version" : (1, 4, 3),
+    "version" : (1, 4, 4),
     "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -358,6 +358,9 @@ class BuildOutfit(bpy.types.Operator):
 
     def do_export_separate(self, context, build_props, body, basedir, armors, shapes, i, view_layer):
         for armor in armors:
+            for ob in context.selected_objects:
+                ob.select_set(False)
+            
             armor.select_set(True)
             view_layer.objects.active = armor
 
@@ -368,6 +371,7 @@ class BuildOutfit(bpy.types.Operator):
                 armor_shape = armor.copy()
                 armor_shape.data = armor.data.copy()
                 context.collection.objects.link(armor_shape)
+            armor.select_set(False)
 
             armor_shape.active_shape_key_index = i
             armor_shape.active_shape_key.value = 1
