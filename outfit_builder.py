@@ -1,7 +1,7 @@
 bl_info = {
     "name"    : "Outfit Builder",
     "author"  : "LazyIcarus",
-    "version" : (1, 4, 5),
+    "version" : (1, 4, 6),
     "blender" : (3, 1, 0),
     "category": "Add Mesh",
     "location": "Object -> Build Outfits"
@@ -166,7 +166,11 @@ def replace_node_with_shapes(root, shapes, node):
     name_attribute = node.find('.//attribute[@id="Name"]')
     # Expects 2 conventions - either it finishes with Basis, or we assume it's the name without _Basis
     full_name = name_attribute.get('value')
-    name = full_name.rstrip(BASIS)
+    # only remove the basis if it's there
+    if full_name.endswith(BASIS):
+        name = full_name.rstrip(BASIS)
+    else:
+        name = full_name
     print(f"Name: {name}")
 
     # replace the old node with our new copies
