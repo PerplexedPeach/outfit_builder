@@ -11,7 +11,6 @@ https://github.com/PerplexedPeach/outfit_builder/assets/48222967/4ca17361-6015-4
 https://github.com/PerplexedPeach/outfit_builder/assets/48222967/e61b6084-235b-4f97-bd7a-fa143f2e8de4
 
 
-
 ## Installation
 - download as zip (green button on the github page)
   
@@ -46,6 +45,14 @@ The different options explained:
 - Remove shapes after export: Whether to remove the shape variant meshes after exporting them.
 - Body Mesh: Explictly set the body to take the shape keys from. Necessary in certain cases where multi-selection does not let you select the body first.
 - Output dir: Directory to export the GR2 files. If empty, the local directory of the blender file will be used.
+
+## Weight Transfer Tips
+When changing between body types and shapes (e.g. HUM_F to HUM_FS or HUM_M), you'll need to:
+1. parent the armor mesh under the new armature (HUM_F and HUM_M use different armatures) by dragging the mesh to the armature and holding shift when dropping to set as parent
+2. data transfer vertex weights
+    - for HUM_M, just transfer the Chest_M key for best results
+    - for HUM_FS, transfer over all weights (default behavior)
+
 
 ## Shape Key Tips
 See the included template blender file for slim to strong shape keys. You can build similar ones for your custom body shapes.
