@@ -10,6 +10,8 @@ https://github.com/PerplexedPeach/outfit_builder/assets/48222967/4ca17361-6015-4
 
 https://github.com/PerplexedPeach/outfit_builder/assets/48222967/e61b6084-235b-4f97-bd7a-fa143f2e8de4
 
+## Shape Keys
+- (1.2) thanks to Padme4000 for providing all base game HUM_F to fem and HUM_M to masc shape keys!
 
 ## Installation
 - download as zip (green button on the github page)
