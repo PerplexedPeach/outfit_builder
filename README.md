@@ -26,7 +26,7 @@ https://github.com/PerplexedPeach/outfit_builder/assets/48222967/e61b6084-235b-4
 - in the search bar of preferences, search for outfit and check Outfit Builder
 ![2023-10-22 00_12_34-Blender Preferences](https://github.com/PerplexedPeach/outfit_builder/assets/48222967/441c9063-882c-4f0b-8126-e461a6af0ba0)
 
-You also need to install the free [Mesh Data Transfer add-on](https://mmemoli.gumroad.com/l/tOKEh) in a similar way
+You also need to install the free [Mesh Data Transfer add-on](https://mmemoli.gumroad.com/l/tOKEh) and [BG3 collada export/import](https://github.com/Norbyte/dos2de_collada_exporter) in a similar way (read their readme for specific instructions).
 
 ## Tutorial
 After you enabled the add-on, you should see a new tab appear on the right of the 3D view
